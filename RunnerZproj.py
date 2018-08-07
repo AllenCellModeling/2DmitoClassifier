@@ -22,13 +22,13 @@ p_master_table = {k: {'pred_labels': [], 'pred_entropy': [], 'pred_uid': [], 'pr
 for k in range(n_of_it):
     for lname in mito_runs[0].mito_labels.keys():
         print("lname: {0}".format(lname))
-        master_table[lname]['true_labels'] += mito_runs[k].mito_labels[lname]['true_labels']
-        master_table[lname]['pred_labels'] += mito_runs[k].mito_labels[lname]['pred_labels']
+        master_table[lname]['true_labels'] += mito_runs[k].mito_labels[lname]['true_label']
+        master_table[lname]['pred_labels'] += mito_runs[k].mito_labels[lname]['pred_label']
         master_table[lname]['probability'] += mito_runs[k].mito_labels[lname]['probability']
 
 for k in range(n_of_it):
     for lname in mito_runs[0].pred_mito_labels.keys():
-        p_master_table[lname]['pred_labels'] += mito_runs[k].pred_mito_labels[lname]['pred_labels']
+        p_master_table[lname]['pred_labels'] += mito_runs[k].pred_mito_labels[lname]['pred_label']
         p_master_table[lname]['pred_entropy'] += mito_runs[k].pred_mito_labels[lname]['pred_entropy']
         p_master_table[lname]['pred_uid'] += mito_runs[k].pred_mito_labels[lname]['pred_uid']
         p_master_table[lname]['probability'] +=  mito_runs[k].pred_mito_labels[lname]['probability']

@@ -24,12 +24,16 @@ data['outputCellSegWholeFilename'] = data['outputSegmentationPath'] + data['outp
 data['outputCellSegWholeSegScaleFilename'] = data['outputSegmentationPath'] + data['outputCellSegWholeSegScaleFilename']
 data['outputNucSegWholeFilename'] = data['outputSegmentationPath'] + data['outputNucSegWholeFilename']
 data['outputNucSegWholeSegScaleFilename'] = data['outputSegmentationPath'] + data['outputNucSegWholeSegScaleFilename']
+data['save_flat_proj_reg_path'] = '/allen/aics/modeling/PIPELINE/2018-07-23-17:20:57/' + data['save_flat_proj_reg_path']
+data['save_flat_reg_path'] = '/allen/aics/modeling/PIPELINE/2018-07-23-17:20:57/' + data['save_flat_reg_path']
+data['save_h5_reg_path'] = '/allen/aics/modeling/PIPELINE/2018-07-23-17:20:57/' + data['save_h5_reg_path']
+
 
 #data.to_csv("~/output.csv")
 
 
 ds_info = prod.upload_dataset(dataset=data,
-                              name="MitoEval20180731",
+                              name="MitoEval20180806",
                               description="Recent Handoff Data for Mito-classification",
                               type_map={'DeliveryDate': str,
                                         'FinalScore': int,
@@ -76,6 +80,8 @@ ds_info = prod.upload_dataset(dataset=data,
                                         'save_flat_reg_path': str,  # file
                                         'save_flat_proj_reg_path': str,  # file
                                         'save_h5_reg_path': str},  # not a file},
+                              filepath_columns=['save_flat_proj_reg_path'],
+                              store_files=False,
                               import_as_type_map=True)
 
 print(ds_info)

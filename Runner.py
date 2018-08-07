@@ -5,10 +5,17 @@ import matplotlib.pyplot as plt
 from ThreeChannel import MitosisClassifierThreeChannel
 from model_analysis import plot_confusion_matrix
 import numpy as np
+#from orator import Model, DatabaseManager
+#import yaml
 
-n_of_it = 10
+#ydata = yaml.load(open('orator.yml', 'r'))
+#ydata['databases']['remote_db']['host'] = '10.128.105.89'
+#db = DatabaseManager(ydata['databases'])
+#Model.set_connection_resolver(db)
+
+n_of_it = 1
 mito_runs = list()
-path = '/root/projects/three_channel/ThreeChannel'
+path = '/root/projects/three_channel/ThreeChannel2'
 
 for m_it in range(n_of_it):
     mito_runs.append( MitosisClassifierThreeChannel(path, m_it))

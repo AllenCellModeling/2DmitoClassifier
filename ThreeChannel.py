@@ -1,4 +1,5 @@
 import os, sys, gc, copy, itertools, json
+from yaml import load
 
 sys.path.append("src")
 from train_model import train_model
@@ -41,6 +42,10 @@ from pytorch_learning_tools.utils.data_utils import classes_and_weights
 import seaborn as sns
 import collections
 import pickle
+from models.irena_classification import IrenaClassification
+from sqlalchemy import create_engine
+
+
 
 
 class MitosisClassifier(object):
@@ -51,14 +56,13 @@ class MitosisClassifier(object):
 
     """
 
-    def __init__(self, base_path, iter_n=0, f_label='MitosisLabel'):
+    def __init__(self, base_path, iter_n=0, f_label='mitosis_label'):
         self.GPU_ID = 1
         self.BATCH_SIZE = 64
         self.base_path = base_path
         self.iter_n = iter_n
         self.greg_data = '/root/aics/modeling/gregj/results/ipp/ipp_17_12_03/'
         self.csv_input = 'input_data_files/mito_annotations_all.csv' #
-        #self.csv_input = 'input_data_files/mito_annotations_only_with_pngs_with_corrections.csv'
         self.f_type = 'save_flat_proj_reg_path'
         self.f_label = f_label
         # human readable classes
@@ -70,6 +74,7 @@ class MitosisClassifier(object):
                                      "M5: metaphase",
                                      "M6: anaphase",
                                      "M7: telophase-cytokinesis"])
+
         self.dp = None
         self.dp_no_annots = None
         self.pred_mito_labels = None
@@ -77,36 +82,19 @@ class MitosisClassifier(object):
     def class_names(self):
         return self.m_class_names
 
-    def read_and_filter_input(self, f_label='MitosisLabel'):
+    def read_and_filter_input(self, f_label='mitosis_label'):
+
         filt = f_label + ' >= 0'
 
-        # read file
-        df_unfiltered = pd.read_csv(self.csv_input,
-                                    dtype={'structureSegOutputFilename': str,
-                                           'structureSegOutputFolder': str}
-                                    )
+        conn_string = "postgresql://ro:BR9p66@pg-aics-modeling-01/pg_modeling"
+        conn = create_engine(conn_string)
+        dfio = pd.read_sql_table('irena_classifications', conn, index_col='id')
 
-        # filter for mito annotations
-        df = df_unfiltered.query(filt)
-        df = df.reset_index(drop=True)
+        df = dfio.copy(deep=True)
 
-        # add absolute path
-        df[self.f_type] = '/root/aics/modeling/gregj/results/ipp/ipp_17_12_03/' + df[self.f_type]
+        # add absolute path  '/root/aics/modeling/gregj/results/ipp/ipp_17_12_03/' + df[self.f_type]
+        # df[self.f_type] = '/root/aics/modeling/gregj/results/ipp/ipp_17_12_03' + df[self.f_type]
 
-        # filter for rows where images are actually present
-        df = filter_dataframe(df, '', self.f_type)
-
-        # add numeric labels
-        le = LabelEncoder()
-        df['targetNumeric'] = le.fit_transform(df[f_label]).astype(np.int64)
-
-        # print label map
-        label_map = dict(zip(le.classes_, [int(i) for i in le.transform(le.classes_)]))
-        print(json.dumps(label_map, indent=2))
-
-        # save a csv
-        csv_out = self.ofname('mito_annotations_only_with_pngs_{0}'.format(str(self.iter_n).zfill(2)), 'csv')
-        df.to_csv(csv_out, index=False)
         return df
 
     def transform(self):
@@ -117,22 +105,23 @@ class MitosisClassifier(object):
         split_fracs = {'train': 1.0 - testf, 'test': testf}
         split_seed = 1
 
-        dataset_kwargs = {split: {'target': 'targetNumeric', 'image': self.f_type} for split in split_fracs.keys()}
+        dataset_kwargs = {split: {'target': 'target_numeric', 'image': self.f_type, 'uniqueID': 'save_h5_reg_path'} for split in split_fracs.keys()}
         dataloader_kwargs = {
             split: {'batch_size': self.BATCH_SIZE, 'shuffle': True, 'drop_last': True, 'num_workers': 4, 'pin_memory': True} for split in split_fracs.keys()}
 
         dataset_kwargs['train']['imageTransform'] = self.transform()
-        dataset_kwargs['test']['imageTransform']  = self.transform()
+        dataset_kwargs['test']['imageTransform'] = self.transform()
 
 
         splits_data = pickle.load(open(splits_pkl, "rb"))
 
-        self.dp = DataframeDataProvider(df, datasetClass=DatasetSingleRGBImageToTarget,
+        self.dp = DataframeDataProvider(df, datasetClass=DatasetSingleRGBImageToTargetUniqueID,
                                    split_fracs=splits_data,
                                    split_seed=split_seed,
                                    uniqueID='save_h5_reg_path',
                                    dataset_kwargs=dataset_kwargs,
                                    dataloader_kwargs=dataloader_kwargs)
+
 
     def check_images(self, model, dkey='test'):
         i, mb = next(enumerate(self.dp.dataloaders[dkey]))
@@ -144,13 +133,12 @@ class MitosisClassifier(object):
         fname = "Inspect_{0}".format(dkey)
         img.save(self.ofname(fname, "png"))
 
-
     def ofname(self, b_name, f_ext):
         fname = "{0}_{1}.{2}".format(b_name, str(self.iter_n).zfill(2), f_ext)
         return os.path.join(self.base_path, fname)
 
     def generate_class_weights(self):
-        classes, weights = classes_and_weights(self.dp, split='train', target_col='targetNumeric')
+        classes, weights = classes_and_weights(self.dp, split='train', target_col='target_numeric')
         weights = weights.cuda(self.GPU_ID)
         CWP = collections.namedtuple('CWP', ['cls', 'weights'])
         return CWP(classes, weights = weights)
@@ -184,20 +172,37 @@ class MitosisClassifier(object):
 
         model.eval()
 
-        mito_labels = {k: {'true_labels': [], 'pred_labels': [], 'probability': []} for k in self.dp.dataloaders.keys()}
+        #mito_labels = {k: {'true_labels': [], 'pred_labels': [], 'probability': [], 'pred_entropy': [], 'uniqueID': []} for k in self.dp.dataloaders.keys()}
+        mito_labels = {k: {} for k in self.dp.dataloaders.keys()}
+        cm_data = {k: {'true_labels': [], 'pred_labels': []} for k in self.dp.dataloaders.keys()}
 
         for phase in self.dp.dataloaders.keys():
             for i, mb in tqdm_notebook(enumerate(self.dp.dataloaders[phase]), total=len(self.dp.dataloaders[phase]),
                                        postfix={'phase': phase}):
                 x = mb['image']
                 y = mb['target']
+                u = mb['uniqueID']
 
                 y_hat_pred = model(Variable(x).cuda(self.GPU_ID))
                 _, y_hat = y_hat_pred.max(1)
 
-                mito_labels[phase]['true_labels'] += list(y.data.cpu().squeeze().numpy())
-                mito_labels[phase]['pred_labels'] += list(y_hat.data.cpu().numpy())
-                mito_labels[phase]['probability'] += list(F.softmax(y_hat_pred.data.cpu(), dim=1).numpy())
+                probs = F.softmax(y_hat_pred.data.cpu(), dim=1)
+                entropy = -torch.sum(probs * torch.log(probs), dim=1)
+
+                true_label = list(y.data.cpu().squeeze().numpy())
+                pred_label = list(y_hat.data.cpu().numpy())
+                prob = list(F.softmax(y_hat_pred.data.cpu(), dim=1).numpy())
+                pred_ent = list(entropy.data.cpu().numpy())
+
+                for idx in range(len(u)):
+                    mito_labels[phase][u[idx]] = {'true_label': true_label[idx],
+                                                  'pred_label': pred_label[idx],
+                                                  'pred_entropy': pred_ent[idx],
+                                                  'probability': prob[idx]
+                                                 }
+
+                cm_data[phase]['true_labels'] += true_label
+                cm_data[phase]['pred_labels'] += pred_label
         #capture training / test data report
         self.mito_labels = mito_labels
 
@@ -205,11 +210,11 @@ class MitosisClassifier(object):
 
         # model_analysis(mito_labels['train']['true_labels'], mito_labels['train']['pred_labels'])
 
-        fig, ax = plot_confusion_matrix(mito_labels['train']['true_labels'], mito_labels['train']['pred_labels'], classes=self.class_names())
+        fig, ax = plot_confusion_matrix(cm_data['train']['true_labels'], cm_data['train']['pred_labels'], classes=self.class_names())
         fig.savefig(self.ofname('CF_training', 'png'))
         plt.close(fig)
 
-        fig, ax = plot_confusion_matrix(mito_labels['test']['true_labels'], mito_labels['test']['pred_labels'], classes=self.class_names())
+        fig, ax = plot_confusion_matrix(cm_data['test']['true_labels'], cm_data['test']['pred_labels'], classes=self.class_names())
         fig.savefig(self.ofname('CF_test', 'png'))
         plt.close(fig)
 
@@ -233,8 +238,8 @@ class MitosisClassifier(object):
 
         # filter for rows where images are actually present
         df_no_annots = filter_dataframe(df_no_annots, '/root/aics/modeling/gregj/results/ipp/ipp_17_12_03/', self.f_type)
-        df_no_annots['targetNumeric'] = -1
-        df_no_annots['targetNumeric'] = df_no_annots['targetNumeric'].astype(np.int64)
+        df_no_annots['target_numeric'] = -1
+        df_no_annots['target_numeric'] = df_no_annots['target_numeric'].astype(np.int64)
 
         # save a csv
         csv_out = self.ofname('mito_annotations_missing_with_pngs_{0}'.format(str(self.iter_n).zfill(2)), "csv")
@@ -243,7 +248,7 @@ class MitosisClassifier(object):
         split_fracs = {'all': 1.0}
         split_seed = 1
 
-        dataset_kwargs = {split: {'target': 'targetNumeric', 'image': self.f_type, 'uniqueID': 'save_h5_reg_path'} for split
+        dataset_kwargs = {split: {'target': 'target_numeric', 'image': self.f_type, 'uniqueID': 'save_h5_reg_path'} for split
                           in split_fracs.keys()}
         dataloader_kwargs = {
         split: {'batch_size': self.BATCH_SIZE, 'shuffle': False, 'drop_last': False, 'num_workers': 4, 'pin_memory': True}
@@ -262,7 +267,7 @@ class MitosisClassifier(object):
         # Get predictions
         model.eval()
 
-        p_mito_labels = {phase: {'pred_labels': [], 'pred_entropy': [], 'pred_uid': [], 'probability': []} for phase in
+        p_mito_labels = {phase: {'pred_labels': [], 'pred_entropy': [], 'pred_uid': [], 'probability': [], 'uid': []} for phase in
                        self.dp_no_annots.dataloaders.keys()}
 
         for phase in self.dp_no_annots.dataloaders.keys():
@@ -281,7 +286,7 @@ class MitosisClassifier(object):
                 p_mito_labels[phase]['pred_labels'] += list(y_hat.data.cpu().numpy())
                 p_mito_labels[phase]['pred_entropy'] += list(entropy.data.cpu().numpy())
                 p_mito_labels[phase]['probability'] += list(probs.numpy())
-                p_mito_labels[phase]['pred_uid'] += u
+                #p_mito_labels[phase]['uid'] += u
 
         self.pred_mito_labels = p_mito_labels
 
@@ -292,19 +297,18 @@ class MitosisClassifier(object):
                                 'MitosisLabelProbability': self.pred_mito_labels['all']['probability']})
 
         df_out = pd.merge(self.dp_no_annots.dfs['all'], df_pred, how='inner', on=self.dp_no_annots.opts['uniqueID'])
-        df_out = df_out.drop(columns='targetNumeric')
+        df_out = df_out.drop(columns='target_numeric')
         fname = self.ofname('mitotic_predictions_on_unannotated_cells', 'csv')
         df_out.to_csv(fname)
 
     def run_me(self):
         df = self.read_and_filter_input()
-        self.create_data_provider(df, "splits.pkl")
-        #self.create_data_provider(df, "splits2.pkl")
+        self.create_data_provider(df, "splits_db.pkl")
         print("ready to run.")
         self.select_n_train_n_run_model()
-        self.save_out()
-        precision, recall = self.precision_recall_vec(self.mito_labels['test']['true_labels'], self.mito_labels['test']['probability'])
-        self.plot_prec_recall(precision, recall, self.ofname("precision_recall", "png"))
+        #self.save_out()
+        #precision, recall = self.precision_recall_vec(self.mito_labels['test']['true_labels'], self.mito_labels['test']['probability'])
+        #self.plot_prec_recall(precision, recall, self.ofname("precision_recall", "png"))
         print("finished.")
 
     def precision_recall_vec(self, tru_label, probs):
@@ -428,3 +432,161 @@ class MitosisClassifierZProj(MitosisClassifier):
         return transforms.Compose([transforms.ToPILImage(), transforms.Resize(256), transforms.CenterCrop(224),
                                    transforms.ToTensor(), transforms.Lambda(lambda x: mask*x)])
 
+
+class Mitosis2CZ(MitosisClassifier):
+    def __init__(self, base_path, iter_n=0, f_label='MitosisLabel'):
+        MitosisClassifier.__init__(self, base_path, iter_n, f_label)
+        self.base_path = os.path.join(self.base_path, "Z")
+
+    def transform(self):
+        return self.three_channel_transform()
+
+
+    def three_channel_transform(self):
+        w = 224
+        s = 2.5
+
+        # this is the xyz geometry imbeded in the image
+        gx = 96
+        gy = 128
+        gz = 64
+
+        # xyz once the image has been scaled by s
+        nx = int(round(s * gx))
+        ny = int(round(s * gy))
+        nz = int(round(s * gz))
+
+        nwidth = int(round(170 * s))
+        nheight = int(round(230 * s))
+
+        # offsets for each pain within the image
+        xo = 0
+        yo = 90
+        x2o = 40
+        y2o = 50
+        x3o = 40
+
+        # start coordinates for each fram
+        x1s = xo + 0
+        y1s = yo + 0
+        x2s = x2o + nz
+        y2s = y2o + (nheight - w - 50)
+        x3s = x3o + nz
+
+        blank = torch.zeros([w, w])
+
+        return transforms.Compose(
+            [transforms.ToPILImage(), transforms.Resize(nwidth), transforms.CenterCrop((nheight, nwidth)),
+             transforms.ToTensor(), transforms.Lambda(lambda x: torch.stack(
+                [x[0, y1s:(w + y1s), x2s:(w + x2s)],
+                 blank,
+                 x[2, y1s:(w + y1s), x2s:(w + x2s)]
+                 ]))])
+
+
+class Mitosis2CX(MitosisClassifier):
+    def __init__(self, base_path, iter_n=0, f_label='MitosisLabel'):
+        MitosisClassifier.__init__(self, base_path, iter_n, f_label)
+        self.base_path = os.path.join(self.base_path, "X")
+
+    def transform(self):
+        return self.three_channel_transform()
+
+
+    def three_channel_transform(self):
+        w = 224
+        s = 2.5
+
+        # this is the xyz geometry imbeded in the image
+        gx = 96
+        gy = 128
+        gz = 64
+
+        # xyz once the image has been scaled by s
+        nx = int(round(s * gx))
+        ny = int(round(s * gy))
+        nz = int(round(s * gz))
+
+        nwidth = int(round(170 * s))
+        nheight = int(round(230 * s))
+
+        # offsets for each pain within the image
+        xo = 0
+        yo = 90
+        x2o = 40
+        y2o = 50
+        x3o = 40
+
+        # start coordinates for each fram
+        x1s = xo + 0
+        y1s = yo + 0
+        x2s = x2o + nz
+        y2s = y2o + (nheight - w - 50)
+        x3s = x3o + nz
+
+
+        blank = torch.zeros([w, w])
+
+
+        return transforms.Compose(
+            [transforms.ToPILImage(), transforms.Resize(nwidth), transforms.CenterCrop((nheight, nwidth)),
+             transforms.ToTensor(), transforms.Lambda(lambda x: torch.stack(
+                [x[0, y1s:(w + y1s), x1s:(w + x1s)],
+                 blank,
+                 x[2, y1s:(w + y1s), x1s:(w + x1s)]
+                 ]))])
+
+
+
+
+class Mitosis2CY(MitosisClassifier):
+    def __init__(self, base_path, iter_n=0, f_label='MitosisLabel'):
+        MitosisClassifier.__init__(self, base_path, iter_n, f_label)
+        self.base_path = os.path.join(self.base_path, "Y")
+
+
+    def transform(self):
+        return self.three_channel_transform()
+
+
+    def three_channel_transform(self):
+        w = 224
+        s = 2.5
+
+        # this is the xyz geometry imbeded in the image
+        gx = 96
+        gy = 128
+        gz = 64
+
+        # xyz once the image has been scaled by s
+        nx = int(round(s * gx))
+        ny = int(round(s * gy))
+        nz = int(round(s * gz))
+
+        nwidth = int(round(170 * s))
+        nheight = int(round(230 * s))
+
+        # offsets for each pain within the image
+        xo = 0
+        yo = 90
+        x2o = 40
+        y2o = 50
+        x3o = 40
+
+        # start coordinates for each fram
+        x1s = xo + 0
+        y1s = yo + 0
+        x2s = x2o + nz
+        y2s = y2o + (nheight - w - 50)
+        x3s = x3o + nz
+
+        blank = torch.zeros([w, w])
+
+        return transforms.Compose(
+            [transforms.ToPILImage(), transforms.Resize(nwidth), transforms.CenterCrop((nheight, nwidth)),
+             transforms.ToTensor(), transforms.Lambda(lambda x: torch.stack(
+                [
+                    x[0, y2s:(w + y2s), x3s:(w + x3s)],
+                    blank,
+                    x[2, y2s:(w + y2s), x3s:(w + x3s)]
+                ]))])
