@@ -208,14 +208,14 @@ class MitosisClassifier(object):
         return df_out
 
     def run_me(self, modellist):
-
-        xpath = modellist[0]
-        ypath = modellist[1]
-        zpath = modellist[2]
+        print(modellist[0]['axis'], modellist[1]['axis'], modellist[2]['axis'])
+        xpath = modellist[0]['pytorch_model']
+        ypath = modellist[1]['pytorch_model']
+        zpath = modellist[2]['pytorch_model']
         #df = self.read_and_filter_input()
         self.create_data_providers_xyz(self.df)
         #self.load_models_xyz(xpath, ypath, zpath)
-        self.apply_models()
+        self.apply_models(xpath, ypath, zpath)
         df_out = self.save_out()
         return df_out
 
@@ -351,7 +351,7 @@ if __name__ ==  '__main__':
     mngr = dsdb.ConnectionManager(user="jamies")
     mngr.add_connections(dbConnectionInfo)
     prod = mngr.connect('prod')
-    prod.process_run(mito_runner, 1,
+    prod.process_run(mito_runner, 1, set_algorithm_version="0.1",
                      alg_parameters={"mito_classifier": MitosisClassifier, "model_ds_id": 2},
                      dataset_parameters={"name": "mito predictions",
                                          "description": "this is the first test of mitotic predictions"
