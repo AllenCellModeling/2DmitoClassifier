@@ -25,7 +25,7 @@ ds_info = prod.upload_dataset(dataset=df,
                               type_map={'pytorch_model': str,
                                         'axis': str,
                                         'param_order': int},
-                              filepath_columns=['pytoch_model'],
+                              filepath_columns=['pytorch_model'],
                               store_files=False,
                               import_as_type_map=True)
 
