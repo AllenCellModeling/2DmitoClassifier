@@ -31,12 +31,10 @@ class MitosisClassifier(object):
 
     """
 
-    def __init__(self, base_path, f_label='mitosis_label'):
+    def __init__(self,df, f_label='mitosis_label'):
         self.GPU_ID = 1
         self.BATCH_SIZE = 64  # 64
-        self.base_path = base_path
-        self.greg_data = '/allen/aics/modeling/gregj/results/ipp/ipp_17_12_03/'
-        self.csv_input = 'input_data_files/mito_annotations_all.csv'  #
+        self.base_path = None
         self.f_type = 'save_flat_proj_reg_path'
         self.f_label = f_label
         # human readable classes
@@ -49,6 +47,8 @@ class MitosisClassifier(object):
                                        "M6: anaphase",
                                        "M7: telophase-cytokinesis"])
 
+        self.df = df
+
         self.modelX = None
         self.modelY = None
         self.modelZ = None
@@ -56,9 +56,11 @@ class MitosisClassifier(object):
         self.dpX = None
         self.dpY = None
         self.dpZ = None
-        self.dpXYZ = None
 
         self.mito_labels = None
+
+    def set_basepath(self, bp):
+        self.base_path = bp
 
     def class_names(self):
         return self.m_class_names
@@ -143,15 +145,12 @@ class MitosisClassifier(object):
 
         self.apply_single_model(self.dpX, mito_labels,
                                 'x_pred_labels', 'x_pred_entropy', 'x_pred_uid', 'x_probability', xpath)
-        print("XModel done")
 
         self.apply_single_model(self.dpY, mito_labels,
                                 'y_pred_labels', 'y_pred_entropy', 'y_pred_uid', 'y_probability', ypath)
-        print("YModel done")
 
         self.apply_single_model(self.dpZ, mito_labels,
                                 'z_pred_labels', 'z_pred_entropy', 'z_pred_uid', 'z_probability', zpath)
-        print("ZModel done")
 
         self.apply_min_entropy(mito_labels)
         self.mito_labels = mito_labels
@@ -188,7 +187,7 @@ class MitosisClassifier(object):
                                                                       mlabels[phase]['z_pred_entropy'][i])
                                                      )
 
-    def save_out(self):
+    def save_out(self, create_csv=False):
         uidKey = self.dpX.opts['uniqueID']
         df_pred = pd.DataFrame({'MitosisLabelPredicted': self.mito_labels['all']['pred_labels'],
                                 'X_MitoLabel': self.mito_labels['all']['x_pred_labels'],
@@ -201,23 +200,24 @@ class MitosisClassifier(object):
                                 'Y_MitoProb': self.mito_labels['all']['y_probability'],
                                 'Z_MitoProb': self.mito_labels['all']['z_probability'],
                                 uidKey: self.mito_labels['all']['x_pred_uid']})
-        print("df_pred: ", df_pred.shape)
         df_out = pd.merge(self.dpX.dfs['all'], df_pred, how='inner', on=uidKey)
-        # df_out = df_out.drop(columns='target_numeric')
-        fname = self.ofname('mitotic_predictions_on_unannotated_cells', 'csv')
-        df_out.to_csv(fname)
+        df_out = df_out.drop(columns='target_numeric')
+        if create_csv:
+            fname = self.ofname('mitotic_predictions_on_unannotated_cells', 'csv')
+            df_out.to_csv(fname)
+        return df_out
 
-    def run_me(self):
-        xpath = '/root/projects/three_channel/XYZ3/X/saved_model_10E_01.pt'
-        ypath = '/root/projects/three_channel/XYZ3/Y/saved_model_10E_03.pt'
-        zpath = '/root/projects/three_channel/XYZ3/Z/saved_model_10E_09.pt'
-        df = self.read_and_filter_input()
-        self.create_data_providers_xyz(df)
-        print("ready to run.")
+    def run_me(self, modellist):
+
+        xpath = modellist[0]
+        ypath = modellist[1]
+        zpath = modellist[2]
+        #df = self.read_and_filter_input()
+        self.create_data_providers_xyz(self.df)
         #self.load_models_xyz(xpath, ypath, zpath)
-        self.apply_models(xpath, ypath, zpath)
-        self.save_out()
-        print("finished.")
+        self.apply_models()
+        df_out = self.save_out()
+        return df_out
 
     @staticmethod
     def min_entropy(xl, xe, yl, ye, zl, ze):  # xl => x_label, xe => x_entropy
@@ -335,3 +335,20 @@ class MitosisClassifier(object):
 #         tensor._backward_hooks = backward_hooks
 #         return tensor
 #     torch._utils._rebuild_tensor_v2 = _rebuild_tensor_v2
+
+def mito_runner(dataset, params):
+    m = params["mito_classifier"](df=dataset, **params["mito_init"])
+    df = m.run_me()
+    return df
+
+if __name__ ==  '__main__':
+
+
+
+    prod.process_run(mito_runner
+    1,
+    alg_parameters = {"mito_classifier": MitosisClassifer,
+                      "mito_init", {"parameter": '/allen/aics/modeling/jamies/projects/dbconnect/configs.json'}},
+    dataset_parameters = {"name": "mito predictions",
+                          "description": "this is the first test of mitotic predictions",
+                          "filepath_columns": ["new", "filepath", "columns"]})
