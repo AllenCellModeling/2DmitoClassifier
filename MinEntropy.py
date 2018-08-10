@@ -339,7 +339,7 @@ class MitosisClassifier(object):
 def mito_runner(dataset, params):
     m = params["mito_classifier"](df=dataset)
     dbConnectionInfo = json.load(open('/allen/aics/modeling/jamies/projects/dbconnect/configs.json', 'r'))
-    mngr = dsdb.ConnectionManager()
+    mngr = dsdb.ConnectionManager(user="jamies")
     mngr.add_connections(dbConnectionInfo)
     prod = mngr.connect('prod')
     mlist = prod.get_dataset(params['model_ds_id'])
@@ -348,11 +348,11 @@ def mito_runner(dataset, params):
 
 if __name__ ==  '__main__':
     dbConnectionInfo = json.load(open('/allen/aics/modeling/jamies/projects/dbconnect/configs.json', 'r'))
-    mngr = dsdb.ConnectionManager()
+    mngr = dsdb.ConnectionManager(user="jamies")
     mngr.add_connections(dbConnectionInfo)
     prod = mngr.connect('prod')
     prod.process_run(mito_runner, 1,
-                     alg_parameters={"mito_classifier": MitosisClassifer, "model_ds_id": 2},
+                     alg_parameters={"mito_classifier": MitosisClassifier, "model_ds_id": 2},
                      dataset_parameters={"name": "mito predictions",
                                          "description": "this is the first test of mitotic predictions"
                                          })
