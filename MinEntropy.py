@@ -337,18 +337,22 @@ class MitosisClassifier(object):
 #     torch._utils._rebuild_tensor_v2 = _rebuild_tensor_v2
 
 def mito_runner(dataset, params):
-    m = params["mito_classifier"](df=dataset, **params["mito_init"])
-    df = m.run_me()
+    m = params["mito_classifier"](df=dataset)
+    dbConnectionInfo = json.load(open('/allen/aics/modeling/jamies/projects/dbconnect/configs.json', 'r'))
+    mngr = dsdb.ConnectionManager()
+    mngr.add_connections(dbConnectionInfo)
+    prod = mngr.connect('prod')
+    mlist = prod.get_dataset(params['model_ds_id'])
+    df = m.run_me(mlist)
     return df
 
 if __name__ ==  '__main__':
-
-
-
-    prod.process_run(mito_runner
-    1,
-    alg_parameters = {"mito_classifier": MitosisClassifer,
-                      "mito_init", {"parameter": '/allen/aics/modeling/jamies/projects/dbconnect/configs.json'}},
-    dataset_parameters = {"name": "mito predictions",
-                          "description": "this is the first test of mitotic predictions",
-                          "filepath_columns": ["new", "filepath", "columns"]})
+    dbConnectionInfo = json.load(open('/allen/aics/modeling/jamies/projects/dbconnect/configs.json', 'r'))
+    mngr = dsdb.ConnectionManager()
+    mngr.add_connections(dbConnectionInfo)
+    prod = mngr.connect('prod')
+    prod.process_run(mito_runner, 1,
+                     alg_parameters={"mito_classifier": MitosisClassifer, "model_ds_id": 2},
+                     dataset_parameters={"name": "mito predictions",
+                                         "description": "this is the first test of mitotic predictions"
+                                         })
