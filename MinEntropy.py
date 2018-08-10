@@ -208,10 +208,11 @@ class MitosisClassifier(object):
         return df_out
 
     def run_me(self, modellist):
-        print(modellist[0]['axis'], modellist[1]['axis'], modellist[2]['axis'])
-        xpath = modellist[0]['pytorch_model']
-        ypath = modellist[1]['pytorch_model']
-        zpath = modellist[2]['pytorch_model']
+        pd.DataFrame.where()
+        print(modellist['axis'][0], modellist[1]['axis'], modellist[2]['axis'])
+        xpath = modellist.iloc[modellist.index[modellist['axis'] == "X"]]["pytorch_model"].values[0]
+        ypath = modellist.iloc[modellist.index[modellist['axis'] == "Y"]]["pytorch_model"].values[0]
+        zpath = modellist.iloc[modellist.index[modellist['axis'] == "Z"]]["pytorch_model"].values[0]
         #df = self.read_and_filter_input()
         self.create_data_providers_xyz(self.df)
         #self.load_models_xyz(xpath, ypath, zpath)
