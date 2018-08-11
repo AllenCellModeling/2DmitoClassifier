@@ -145,13 +145,15 @@ class MitosisClassifier(object):
 
         self.apply_single_model(self.dpX, mito_labels,
                                 'x_pred_labels', 'x_pred_entropy', 'x_pred_uid', 'x_probability', xpath)
-
+        print("model X finished")
         self.apply_single_model(self.dpY, mito_labels,
                                 'y_pred_labels', 'y_pred_entropy', 'y_pred_uid', 'y_probability', ypath)
 
+        print("model Y finished")
         self.apply_single_model(self.dpZ, mito_labels,
                                 'z_pred_labels', 'z_pred_entropy', 'z_pred_uid', 'z_probability', zpath)
 
+        print("model Z finished")
         self.apply_min_entropy(mito_labels)
         self.mito_labels = mito_labels
 
@@ -208,8 +210,6 @@ class MitosisClassifier(object):
         return df_out
 
     def run_me(self, modellist):
-        pd.DataFrame.where()
-        print(modellist['axis'][0], modellist[1]['axis'], modellist[2]['axis'])
         xpath = modellist.iloc[modellist.index[modellist['axis'] == "X"]]["pytorch_model"].values[0]
         ypath = modellist.iloc[modellist.index[modellist['axis'] == "Y"]]["pytorch_model"].values[0]
         zpath = modellist.iloc[modellist.index[modellist['axis'] == "Z"]]["pytorch_model"].values[0]
