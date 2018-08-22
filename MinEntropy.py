@@ -32,7 +32,7 @@ class MitosisClassifier(object):
     """
 
     def __init__(self,df, f_label='mitosis_label'):
-        self.GPU_ID = 1
+        self.GPU_ID = 0
         self.BATCH_SIZE = 64  # 64
         self.base_path = None
         self.f_type = 'save_flat_proj_reg_path'
@@ -47,6 +47,7 @@ class MitosisClassifier(object):
                                        "M6: anaphase",
                                        "M7: telophase-cytokinesis"])
 
+        df['target_numeric'] = -1
         self.df = df
 
         self.modelX = None
@@ -75,7 +76,7 @@ class MitosisClassifier(object):
         prod = mngr.connect('prod')
         dfio = prod.get_dataset(1)
         #dfio['save_flat_proj_reg_path'] = '/allen/aics/modeling/PIPELINE/2018-07-23-17:20:57/' + dfio['save_flat_proj_reg_path']
-        dfio['target_numeric'] = -1
+        dfio['target_numeric'] = 0
         df = dfio.copy(deep=True)
         return df
 
@@ -158,7 +159,9 @@ class MitosisClassifier(object):
         self.mito_labels = mito_labels
 
     def apply_single_model(self, dp_h, mlabels, h_pred_labels, h_pred_entropy, h_pred_uid, h_probability, mPath):
+        print("loading model: ", mPath, '=========>>>>>>>>======================')
         model = self.load_model(mPath)
+        print('model loaded\n============================<<<<<<<<<<<<<=================')
         for phase in dp_h.dataloaders.keys():
             for i, mb in enumerate(dp_h.dataloaders[phase]):
                 x = mb['image']
@@ -352,8 +355,8 @@ if __name__ ==  '__main__':
     mngr = dsdb.ConnectionManager(user="jamies")
     mngr.add_connections(dbConnectionInfo)
     prod = mngr.connect('prod')
-    prod.process_run(mito_runner, 1, set_algorithm_version="0.1",
+    prod.process_run(mito_runner, 5, set_algorithm_version="0.1",
                      alg_parameters={"mito_classifier": MitosisClassifier, "model_ds_id": 2},
-                     dataset_parameters={"name": "mito predictions",
-                                         "description": "this is the first test of mitotic predictions"
+                     dataset_parameters={"name": "mito predictions test set",
+                                         "description": "apply mitotic predictions to test dataset from assay dev"
                                          })
