@@ -69,16 +69,17 @@ class MitosisClassifier(object):
     def get_dpX(self):
         return self.dpX
 
-    def read_and_filter_input(self, f_label='mitosis_label'):
-        dbConnectionInfo = json.load(open('/allen/aics/modeling/jamies/projects/dbconnect/configs.json', 'r'))
-        mngr = dsdb.ConnectionManager(user="jamies")
-        mngr.add_connections(dbConnectionInfo)
-        prod = mngr.connect('prod')
-        dfio = prod.get_dataset(1)
-        #dfio['save_flat_proj_reg_path'] = '/allen/aics/modeling/PIPELINE/2018-07-23-17:20:57/' + dfio['save_flat_proj_reg_path']
-        dfio['target_numeric'] = 0
-        df = dfio.copy(deep=True)
-        return df
+    # def read_and_filter_input(self, f_label='mitosis_label'):
+    #     dbConnectionInfo = json.load(open('/allen/aics/modeling/jamies/projects/dbconnect/configs.json', 'r'))
+    #
+    #     mngr = dsdb.ConnectionManager(user="jamies")
+    #     mngr.add_connections(dbConnectionInfo)
+    #     prod = mngr.connect('prod')
+    #     dfio = prod.get_dataset(1)
+    #     #dfio['save_flat_proj_reg_path'] = '/allen/aics/modeling/PIPELINE/2018-07-23-17:20:57/' + dfio['save_flat_proj_reg_path']
+    #     dfio['target_numeric'] = 0
+    #     df = dfio.copy(deep=True)
+    #     return df
 
     def create_data_providers_xyz(self, df):
         self.dpX = self.create_data_provider(df, self.transform_x())
@@ -179,7 +180,7 @@ class MitosisClassifier(object):
                 mlabels[phase][h_pred_labels] += pred_labels
                 mlabels[phase][h_pred_entropy] += pred_entropy
                 mlabels[phase][h_pred_uid] += u
-                mlabels[phase][h_probability] += list(probs.data.cpu())
+                mlabels[phase][h_probability] += list(probs.data.cpu().numpy())
 
     def apply_min_entropy(self, mlabels):
         for phase in self.dpX.dataloaders.keys():
@@ -340,23 +341,19 @@ class MitosisClassifier(object):
 #         return tensor
 #     torch._utils._rebuild_tensor_v2 = _rebuild_tensor_v2
 
-def mito_runner(dataset, params):
-    m = params["mito_classifier"](df=dataset)
-    dbConnectionInfo = json.load(open('/allen/aics/modeling/jamies/projects/dbconnect/configs.json', 'r'))
-    mngr = dsdb.ConnectionManager(user="jamies")
-    mngr.add_connections(dbConnectionInfo)
-    prod = mngr.connect('prod')
-    mlist = prod.get_dataset(params['model_ds_id'])
-    df = m.run_me(mlist)
+def mito_runner(dataset, mito_classifier, model_ds_id):
+    mlist = dataset.info.origin.get_dataset(model_ds_id)
+    mEntropy = MitosisClassifier(dataset.ds)
+    df = mEntropy.run_me(mlist.ds)
     return df
 
 if __name__ ==  '__main__':
-    dbConnectionInfo = json.load(open('/allen/aics/modeling/jamies/projects/dbconnect/configs.json', 'r'))
-    mngr = dsdb.ConnectionManager(user="jamies")
-    mngr.add_connections(dbConnectionInfo)
-    prod = mngr.connect('prod')
-    prod.process_run(mito_runner, 5, set_algorithm_version="0.1",
-                     alg_parameters={"mito_classifier": MitosisClassifier, "model_ds_id": 2},
-                     dataset_parameters={"name": "mito predictions test set",
-                                         "description": "apply mitotic predictions to test dataset from assay dev"
-                                         })
+    prod = dsdb.DatasetDatabase(config='/allen/aics/modeling/jamies/projects/dbconnect/configs2.json', user='jamies')
+    dset = prod.get_dataset(4)
+    dset.apply(mito_runner,
+                 algorithm_parameters= {"mito_classifier": MitosisClassifier, "model_ds_id": 2},
+                 output_dataset_name="mito predictions on Hidden validation set 3",
+                 output_dataset_description="apply (take2) mitotic predictions to the Hidden dataset from assay dev (DatasetId=4)",
+                 algorithm_version="1.0"
+                 )
+
