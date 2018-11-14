@@ -6,6 +6,9 @@ __pycache__/
 orator.yml
 private.json
 
+#ignore datasets
+*.dataset
+
 # ignore output folders
 ThreeChannel
 ZProj

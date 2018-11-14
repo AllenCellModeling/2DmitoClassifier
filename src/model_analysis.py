@@ -26,7 +26,9 @@ def plot_confusion_matrix(test_y,
     cm = confusion_matrix(test_y, predict)
     cm_normalized = normalize_confmat(cm, axis=1, norm='l1')
 
-    fig, ax = plt.subplots(figsize=(8,8), dpi=100)    
+    #print(cm)
+
+    fig, ax = plt.subplots(figsize=(8,8), dpi=100)
     cax = ax.imshow(cm_normalized, interpolation='nearest', cmap=cmap)
 
     tick_marks = np.arange(len(classes))

@@ -42,7 +42,9 @@ from pytorch_learning_tools.utils.data_utils import classes_and_weights
 import seaborn as sns
 import collections
 import pickle
-from models.irena_classification import IrenaClassification
+
+import datasetdatabase as dsdb
+# from models.irena_classification import IrenaClassification
 from sqlalchemy import create_engine
 
 
@@ -57,7 +59,7 @@ class MitosisClassifier(object):
     """
 
     def __init__(self, base_path, iter_n=0, f_label='mitosis_label'):
-        self.GPU_ID = 1
+        self.GPU_ID = 0
         self.BATCH_SIZE = 64
         self.base_path = base_path
         self.iter_n = iter_n
@@ -82,16 +84,10 @@ class MitosisClassifier(object):
     def class_names(self):
         return self.m_class_names
 
-    def read_and_filter_input(self, f_label='mitosis_label'):
+    def read_and_filter_input(self, input_file, f_label='mitosis_label'):
 
-        filt = f_label + ' >= 0'
 
-        conn_string = "postgresql://ro:BR9p66@pg-aics-modeling-01/pg_modeling"
-        conn = create_engine(conn_string)
-        dfio = pd.read_sql_table('irena_classifications', conn, index_col='id')
-
-        df = dfio.copy(deep=True)
-
+        df = pd.read_csv(input_file)
         # add absolute path  '/root/aics/modeling/gregj/results/ipp/ipp_17_12_03/' + df[self.f_type]
         # df[self.f_type] = '/root/aics/modeling/gregj/results/ipp/ipp_17_12_03' + df[self.f_type]
 
@@ -105,7 +101,8 @@ class MitosisClassifier(object):
         split_fracs = {'train': 1.0 - testf, 'test': testf}
         split_seed = 1
 
-        dataset_kwargs = {split: {'target': 'target_numeric', 'image': self.f_type, 'uniqueID': 'save_h5_reg_path'} for split in split_fracs.keys()}
+        dataset_kwargs = {split: {'target': 'target_numeric', 'image': self.f_type, 'uniqueID': 'save_flat_proj_reg_path'} for split in split_fracs.keys()}
+
         dataloader_kwargs = {
             split: {'batch_size': self.BATCH_SIZE, 'shuffle': True, 'drop_last': True, 'num_workers': 4, 'pin_memory': True} for split in split_fracs.keys()}
 
@@ -116,11 +113,11 @@ class MitosisClassifier(object):
         splits_data = pickle.load(open(splits_pkl, "rb"))
 
         self.dp = DataframeDataProvider(df, datasetClass=DatasetSingleRGBImageToTargetUniqueID,
-                                   split_fracs=splits_data,
-                                   split_seed=split_seed,
-                                   uniqueID='save_h5_reg_path',
-                                   dataset_kwargs=dataset_kwargs,
-                                   dataloader_kwargs=dataloader_kwargs)
+                                        split_fracs=splits_data,
+                                        split_seed=split_seed,
+                                        uniqueID='save_flat_proj_reg_path',
+                                        dataset_kwargs=dataset_kwargs,
+                                        dataloader_kwargs=dataloader_kwargs)
 
 
     def check_images(self, model, dkey='test'):
@@ -141,10 +138,10 @@ class MitosisClassifier(object):
         classes, weights = classes_and_weights(self.dp, split='train', target_col='target_numeric')
         weights = weights.cuda(self.GPU_ID)
         CWP = collections.namedtuple('CWP', ['cls', 'weights'])
-        return CWP(classes, weights = weights)
+        return CWP(classes, weights=weights)
 
     def phases(self):
-        return self.dp.dataloaders.keys();
+        return self.dp.dataloaders.keys()
 
     def pred_phases(self):
         return self.dp
@@ -248,8 +245,9 @@ class MitosisClassifier(object):
         split_fracs = {'all': 1.0}
         split_seed = 1
 
-        dataset_kwargs = {split: {'target': 'target_numeric', 'image': self.f_type, 'uniqueID': 'save_h5_reg_path'} for split
+        dataset_kwargs = {split: {'target': 'target_numeric', 'image': self.f_type, 'uniqueID': 'save_flat_proj_reg_path'} for split
                           in split_fracs.keys()}
+
         dataloader_kwargs = {
         split: {'batch_size': self.BATCH_SIZE, 'shuffle': False, 'drop_last': False, 'num_workers': 4, 'pin_memory': True}
         for split in split_fracs.keys()}
@@ -259,7 +257,7 @@ class MitosisClassifier(object):
         self.dp_no_annots = DataframeDataProvider(df_no_annots, datasetClass=DatasetSingleRGBImageToTargetUniqueID,
                                              split_fracs=split_fracs,
                                              split_seed=split_seed,
-                                             uniqueID='save_h5_reg_path',
+                                             uniqueID='save_flat_proj_reg_path',
                                              dataset_kwargs=dataset_kwargs,
                                              dataloader_kwargs=dataloader_kwargs)
 
@@ -301,9 +299,11 @@ class MitosisClassifier(object):
         fname = self.ofname('mitotic_predictions_on_unannotated_cells', 'csv')
         df_out.to_csv(fname)
 
-    def run_me(self):
-        df = self.read_and_filter_input()
-        self.create_data_provider(df, "splits_db.pkl")
+    def run_me(self, dataset_path, input_splits):
+        dset = dsdb.read_dataset(dataset_path)
+        df = dset.ds  #self.read_and_filter_input(input_path)
+        df['target_numeric'] = df['MitosisLabel']
+        self.create_data_provider(df, input_splits)  # "splits_db.pkl")
         print("ready to run.")
         self.select_n_train_n_run_model()
         #self.save_out()

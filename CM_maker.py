@@ -9,24 +9,7 @@ import numpy as np
 import pandas as pd
 
 #dbConnectionInfo = json.load(open('/allen/aics/modeling/jamies/projects/dbconnect/configs2.json', 'r'))
-prod = dsdb.DatasetDatabase(config='/allen/aics/modeling/jamies/projects/dbconnect/configs2.json', user='jamies')
-mlist = prod.get_dataset(9)
-# id_list = [2]  # [1, 2, 3, 5, 6, 13, 19]
-#
-# for id in id_list:
-#     fname = "/Users/jamies/Data/dataset_" + str(id) + ".csv"
-#     df = pd.read_csv(fname)
-#     jname = "/Users/jamies/Data/dataset_" + str(id) + ".json"
-#     with open(jname, 'r') as fp:
-#         jdata = json.load(fp)
-#     name = jdata['Name']
-#     desc = jdata['Description']
-#     ds = dsdb.Dataset(df, name=name, description=desc)
-#     ds.upload_to(prod)
-#
-# prod.recent
-#
-# exit()
+
 match_count = 0
 mismatch = 0
 pcounts = dict([(-1, 0), (0, 0), (1, 0), (2, 0), (3, 0), (4, 0), (5, 0), (6, 0), (7, 0)])

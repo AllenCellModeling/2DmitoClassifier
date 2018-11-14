@@ -18,13 +18,13 @@ class MakeFigures(object):
 
     def make_figures(self, im_label='save_flat_proj_reg_path'):
         wc = (255,0,0)
-        for s_idx in range(6,7): # range(1,6):
+        for s_idx in range(1,7): # range(1,6):
             true_list = self.df.index[self.df['MitosisLabel'] == s_idx].tolist()
             for idx in true_list:
                 if self.df['MitosisLabel'][idx] == self.df['MitosisLabelPredicted'][idx] and self.df['MitosisLabel'][idx] != 0:
                     self.blue_channel(idx, s_idx, '')
                 else:
-                    self.blue_channel(idx, s_idx, 'X', wrong_color=wc)
+                    self.blue_channel(idx, s_idx, 'X',channel='save_flat_reg_path', wrong_color=wc)
 
     def blue_channel(self, idx, state_idx, pre_tag, channel='save_flat_proj_reg_path', wrong_color=(255,255,255)):
         fname = self.df[channel][idx]
@@ -40,7 +40,7 @@ class MakeFigures(object):
         d.text((10, 10), "true: {}".format(true_label))  #  , fill=wrong_color)
         d.text((10, 20), 'pred: {}'.format(pred_label))  #  , fill=wrong_color)
         d.text((10, 30), 'key: {}'.format(ikey))
-        im.save('/allen/aics/modeling/jamies/Data/iRev/state_{0}/{2}rev_{1}.png'.format(state_idx, ikey, pre_tag))
+        im.save('/allen/aics/modeling/jamies/Data/iRevHR/state_{0}/{2}rev_{1}.png'.format(state_idx, ikey, pre_tag))
 
 
 if __name__ == '__main__':

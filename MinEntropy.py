@@ -342,18 +342,40 @@ class MitosisClassifier(object):
 #     torch._utils._rebuild_tensor_v2 = _rebuild_tensor_v2
 
 def mito_runner(dataset, mito_classifier, model_ds_id):
-    mlist = dataset.info.origin.get_dataset(model_ds_id)
+    mlist = dataset.info.origin.get_dataset(id=model_ds_id)
     mEntropy = MitosisClassifier(dataset.ds)
     df = mEntropy.run_me(mlist.ds)
     return df
 
+
+def mito_runner_no_apply(dataset, model_ds_id):
+    mlist = dataset.info.origin.get_dataset(id=model_ds_id)
+    mEntropy = MitosisClassifier(dataset.ds)
+    df = mEntropy.run_me(mlist.ds)
+    return df
+
+
 if __name__ ==  '__main__':
-    prod = dsdb.DatasetDatabase(config='/allen/aics/modeling/jamies/projects/dbconnect/configs2.json', user='jamies')
-    dset = prod.get_dataset(4)
+    prod = dsdb.DatasetDatabase(config='/allen/aics/modeling/jamies/projects/dbconnect/configs2.json', user='jamies',
+                                processing_limit=40)
+    #dset = prod.get_dataset(id=77)  # was 3 for hidden dataset
+
+    dset = dsdb.read_dataset("/allen/aics/modeling/jamies/projects/Data/mitoInput.dataset")
+    # dset.save('/root/projects/three_channel/dset76.dsdb')
+    #dset = dsdb.read_dataset('/root/projects/three_channel/gregSet.dataset')
+
     dset.apply(mito_runner,
-                 algorithm_parameters= {"mito_classifier": MitosisClassifier, "model_ds_id": 2},
-                 output_dataset_name="mito predictions on Hidden validation set 3",
-                 output_dataset_description="apply (take2) mitotic predictions to the Hidden dataset from assay dev (DatasetId=4)",
+                 algorithm_parameters= {"mito_classifier": MitosisClassifier, "model_ds_id": 119},
+                 output_dataset_name="mito predictions applied to dataset 120",
+                 output_dataset_description="mitotic predictions for handoff production data for website",
                  algorithm_version="1.0"
                  )
 
+    dset.save('/allen/aics/modeling/jamies/projects/Data/uploadData')
+
+    # dset.apply(mito_runner,
+    #              algorithm_parameters= {"mito_classifier": MitosisClassifier, "model_ds_id": 6},
+    #              output_dataset_name="mito predictions on Hidden validation set 3",
+    #              output_dataset_description="apply mitotic predictions to the Hidden dataset from assay dev (DatasetId=3)",
+    #              algorithm_version="1.0"
+    #              )
