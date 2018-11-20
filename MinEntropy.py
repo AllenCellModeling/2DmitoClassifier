@@ -1,26 +1,29 @@
-import os, sys
-
-sys.path.append("src")
-
+import os
+import sys
 import numpy as np
 import pandas as pd
-import json
 import datasetdatabase as dsdb
 import datetime
-
 import torch
 from torch import nn
 import torch.nn.functional as F
 from torch.autograd import Variable
 from torchvision import transforms, utils, models
-
 from pytorch_learning_tools.data_providers.DataframeDataProvider import DataframeDataProvider
 from pytorch_learning_tools.data_providers.DataframeDataset import DatasetSingleRGBImageToTarget, \
     DatasetSingleRGBImageToTargetUniqueID
 from pytorch_learning_tools.utils.data_utils import classes_and_weights
-
 import collections
 
+# This code needs to be run in rory's docker image
+# rorydm/pytorch_extras:jupyter
+
+# My prefered method is to launch the docker container with the appropriate mounts and then connect with
+# > docker exec -it {ContainerInstanceName} /bin/bash
+# root> python ./MinEntropy.py
+
+# I'm not sure this is necessary but rory had it in his script
+sys.path.append("src")
 
 
 class MitosisClassifier(object):
@@ -31,7 +34,7 @@ class MitosisClassifier(object):
 
     """
 
-    def __init__(self,df, f_label='mitosis_label'):
+    def __init__(self, df, f_label='mitosis_label'):
         self.GPU_ID = 0
         self.BATCH_SIZE = 64  # 64
         self.base_path = None
@@ -68,18 +71,6 @@ class MitosisClassifier(object):
 
     def get_dpX(self):
         return self.dpX
-
-    # def read_and_filter_input(self, f_label='mitosis_label'):
-    #     dbConnectionInfo = json.load(open('/allen/aics/modeling/jamies/projects/dbconnect/configs.json', 'r'))
-    #
-    #     mngr = dsdb.ConnectionManager(user="jamies")
-    #     mngr.add_connections(dbConnectionInfo)
-    #     prod = mngr.connect('prod')
-    #     dfio = prod.get_dataset(1)
-    #     #dfio['save_flat_proj_reg_path'] = '/allen/aics/modeling/PIPELINE/2018-07-23-17:20:57/' + dfio['save_flat_proj_reg_path']
-    #     dfio['target_numeric'] = 0
-    #     df = dfio.copy(deep=True)
-    #     return df
 
     def create_data_providers_xyz(self, df):
         self.dpX = self.create_data_provider(df, self.transform_x())
@@ -132,11 +123,6 @@ class MitosisClassifier(object):
         model = model.cuda(self.GPU_ID)
         model.eval()
         return model
-    #
-    # def load_models_xyz(self, mPathX, mPathY, mPathZ):
-    #     self.modelX = self.load_model(mPathX)
-    #     self.modelY = self.load_model(mPathY)
-    #     self.modelZ = self.load_model(mPathZ)
 
     def apply_models(self, xpath, ypath, zpath):
         mito_labels = {k: {'x_pred_labels': [], 'x_pred_entropy': [], 'x_pred_uid': [], 'x_probability': [],
@@ -217,9 +203,7 @@ class MitosisClassifier(object):
         xpath = modellist.iloc[modellist.index[modellist['axis'] == "X"]]["pytorch_model"].values[0]
         ypath = modellist.iloc[modellist.index[modellist['axis'] == "Y"]]["pytorch_model"].values[0]
         zpath = modellist.iloc[modellist.index[modellist['axis'] == "Z"]]["pytorch_model"].values[0]
-        #df = self.read_and_filter_input()
         self.create_data_providers_xyz(self.df)
-        #self.load_models_xyz(xpath, ypath, zpath)
         self.apply_models(xpath, ypath, zpath)
         df_out = self.save_out()
         return df_out
@@ -328,19 +312,6 @@ class MitosisClassifier(object):
                  ]))])
 
 
-# This is a hack to bootstrap models trained on aics001 into newer version of pytorch
-#
-# import torch._utils
-# try:
-#     torch._utils._rebuild_tensor_v2
-# except AttributeError:
-#     def _rebuild_tensor_v2(storage, storage_offset, size, stride, requires_grad, backward_hooks):
-#         tensor = torch._utils._rebuild_tensor(storage, storage_offset, size, stride)
-#         tensor.requires_grad = requires_grad
-#         tensor._backward_hooks = backward_hooks
-#         return tensor
-#     torch._utils._rebuild_tensor_v2 = _rebuild_tensor_v2
-
 def mito_runner(dataset, mito_classifier, model_ds_id):
     mlist = dataset.info.origin.get_dataset(id=model_ds_id)
     mEntropy = MitosisClassifier(dataset.ds)
@@ -355,27 +326,17 @@ def mito_runner_no_apply(dataset, model_ds_id):
     return df
 
 
-if __name__ ==  '__main__':
+if __name__ == '__main__':
     prod = dsdb.DatasetDatabase(config='/allen/aics/modeling/jamies/projects/dbconnect/configs2.json', user='jamies',
                                 processing_limit=40)
-    #dset = prod.get_dataset(id=77)  # was 3 for hidden dataset
 
     dset = dsdb.read_dataset("/allen/aics/modeling/jamies/projects/Data/mitoInput.dataset")
-    # dset.save('/root/projects/three_channel/dset76.dsdb')
-    #dset = dsdb.read_dataset('/root/projects/three_channel/gregSet.dataset')
 
     dset.apply(mito_runner,
-                 algorithm_parameters= {"mito_classifier": MitosisClassifier, "model_ds_id": 119},
-                 output_dataset_name="mito predictions applied to dataset 120",
-                 output_dataset_description="mitotic predictions for handoff production data for website",
-                 algorithm_version="1.0"
-                 )
+               algorithm_parameters={"mito_classifier": MitosisClassifier, "model_ds_id": 119},
+               output_dataset_name="mito predictions applied to dataset 120",
+               output_dataset_description="mitotic predictions for handoff production data for website",
+               algorithm_version="1.0"
+               )
 
     dset.save('/allen/aics/modeling/jamies/projects/Data/uploadData')
-
-    # dset.apply(mito_runner,
-    #              algorithm_parameters= {"mito_classifier": MitosisClassifier, "model_ds_id": 6},
-    #              output_dataset_name="mito predictions on Hidden validation set 3",
-    #              output_dataset_description="apply mitotic predictions to the Hidden dataset from assay dev (DatasetId=3)",
-    #              algorithm_version="1.0"
-    #              )

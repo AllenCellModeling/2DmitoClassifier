@@ -18,7 +18,7 @@ print(gDset)
 def nuc_rows(data, key):
     rows_to_remove = []
     for i, v in enumerate(data[key]):
-        print(i, v)
+        # print(i, v)
         if not os.path.exists(v):
             print("file not found: ", v)
             rows_to_remove.append(i)
@@ -32,15 +32,17 @@ def nuc_rows(data, key):
 
 def map_float_to_int(row):
     x = row['Irina_new_Mitosis_label_1']
-    if np.isnan(x) is False:
+    print(x, np.isnan(x), " =?= ", row['MitosisLabel'])
+    if np.isnan(x) == False:
+        print("assigning value ", round(x))
         row['MitosisLabel'] = round(x)
     return row
 
 
 adData = AssayDset.ds.copy()
 adData['CellKey'] = adData['outputThisCellIndex']
-#adData = nuc_rows(adData, 'save_flat_proj_reg_path')
-#adData.rename(columns={'save_flat_proj_reg_path': 'old_flat_proj_reg_path'}, inplace=True)
+# adData = nuc_rows(adData, 'save_flat_proj_reg_path')
+# adData.rename(columns={'save_flat_proj_reg_path': 'old_flat_proj_reg_path'}, inplace=True)
 adData['FileKey'] = adData['InputFilename']
 adData.drop(['MitosisLabel'], axis=1, inplace=True)
 
@@ -54,7 +56,6 @@ mData.drop(['save_flat_proj_reg_path', 'Irina_new_Mitosis_Meaning_1',
             'Irina_new_Mitosis_label_1', 'MitosisLabel'],
            axis=1, inplace=True
            )
-
 
 for k in mData.keys():
     print('nkey: ', k)
@@ -106,11 +107,11 @@ gData['CellKey'] = gData['CellIndex']
 first = True
 gData = gData.apply(lambda row: get_grgfilename(row), axis=1)
 
-#gData = nuc_rows(gData, 'save_flat_proj_reg_path')
-#for k in gData.keys():
+# gData = nuc_rows(gData, 'save_flat_proj_reg_path')
+# for k in gData.keys():
 #    print('key: ', k)
 
-#ans = pd.merge(d0ata, d2ata, on=['FileKey'], how='inner')
+# ans = pd.merge(d0ata, d2ata, on=['FileKey'], how='inner')
 
 ans2 = pd.merge(mData, adData, on=['FileKey', 'CellKey'], how='inner')
 print("0=?=1 : ", mData.shape, " =?= ", ans2.shape)
@@ -134,12 +135,9 @@ ans = ans[['FileKey', 'CellKey', 'MitosisLabel_Keep', 'SourceReadPath', 'save_fl
 
 ans.rename(columns={'MitosisLabel_Keep': 'MitosisLabel'}, inplace=True)
 
-
-
-
 ans = nuc_rows(ans, 'save_flat_proj_reg_path')
 ans.to_csv("~/ans1.csv")
-
+exit()
 prod = dsdb.DatasetDatabase(config='/allen/aics/modeling/jamies/projects/dbconnect/configs2.json', user='jamies',
                             processing_limit=30)
 
